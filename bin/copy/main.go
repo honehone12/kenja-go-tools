@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"kenja2tools"
 	"log"
 	"os"
@@ -14,12 +16,42 @@ import (
 )
 
 type copy struct {
-	ctx           context.Context
+	ctx       context.Context
+	batchSize int
+
 	mongoClient   *mongo.Client
 	opnsrchClient *opensearchapi.Client
 
 	database   *mongo.Database
 	collection *mongo.Collection
+
+	index string
+}
+
+func (run *copy) bulkRequest(batch []bson.M) error {
+	bulk, err := kenja2tools.NewIndexReqsFromDocuments(run.index, batch)
+	if err != nil {
+		return err
+	}
+
+	res, err := run.opnsrchClient.Bulk(run.ctx, bulk)
+	if err != nil {
+		return err
+	}
+
+	if res.Errors {
+		for _, item := range res.Items {
+			for op, info := range item {
+				if info.Error != nil {
+					log.Printf("[ERROR] %s: %#v\n", op, info.Error)
+				}
+			}
+		}
+		return errors.New("failed to copy items, see above for details")
+	} else {
+		log.Printf("copied %d items\n", len(res.Items))
+		return nil
+	}
 }
 
 func (run *copy) run() error {
@@ -31,32 +63,57 @@ func (run *copy) run() error {
 	}
 	defer stream.Close(run.ctx)
 
+	batch := []bson.M{}
+
 	for stream.Next(run.ctx) {
 		doc := bson.M{}
 		if err := stream.Decode(&doc); err != nil {
 			return err
+		}
+
+		batch = append(batch, doc)
+		if len(batch) >= run.batchSize {
+			if err := run.bulkRequest(batch); err != nil {
+				return err
+			}
+			batch = []bson.M{}
 		}
 	}
 	if err := stream.Err(); err != nil {
 		return err
 	}
 
+	if len(batch) > 0 {
+		if err := run.bulkRequest(batch); err != nil {
+			return err
+		}
+	}
+
 	log.Println("done")
 	return nil
 }
 
+func args() int {
+	batchSize := flag.Int("batch-size", 100, "number of documents to copy in one batch")
+	flag.Parse()
+
+	return *batchSize
+}
+
 func main() {
+	batchSize := args()
+
 	if err := godotenv.Load("../../.env"); err != nil {
 		log.Panicln("failed to load .env file:", err)
 	}
 	ctx := context.Background()
 
-	opnsrchClient, err := kenja2tools.OpensearchApiClient()
+	opnsrchClient, err := kenja2tools.NewOpensearchApiClient()
 	if err != nil {
 		log.Panicln("failed to connect to opensearch:", err)
 	}
 
-	mongoClient, err := kenja2tools.MongoClient()
+	mongoClient, err := kenja2tools.NewMongoClient()
 	if err != nil {
 		log.Panicln("failed to connect to mongo:", err)
 	}
@@ -74,12 +131,19 @@ func main() {
 	}
 	collection := database.Collection(cl)
 
+	index := os.Getenv("OPENSEARCH_IDX")
+	if len(index) == 0 {
+		log.Panicln("env for opensearch index is not set")
+	}
+
 	c := copy{
 		ctx,
+		batchSize,
 		mongoClient,
 		opnsrchClient,
 		database,
 		collection,
+		index,
 	}
 	if err := c.run(); err != nil {
 		log.Fatalln(err)
