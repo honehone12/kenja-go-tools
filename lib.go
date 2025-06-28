@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/opensearch-project/opensearch-go/v4"
+	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -52,4 +53,9 @@ func OpensearchConfig() opensearch.Config {
 func OpensearchClient() (*opensearch.Client, error) {
 	cfg := OpensearchConfig()
 	return opensearch.NewClient(cfg)
+}
+
+func OpensearchApiClient() (*opensearchapi.Client, error) {
+	cfg := opensearchapi.Config{Client: OpensearchConfig()}
+	return opensearchapi.NewClient(cfg)
 }
