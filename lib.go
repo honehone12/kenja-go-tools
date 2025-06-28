@@ -85,7 +85,7 @@ func NewBodyFromDocument(doc bson.M) (string, io.Reader, error) {
 	return oid.Hex(), bytes.NewReader(b), nil
 }
 
-func NewIndexReqBody(index string, doc bson.M) (io.Reader, error) {
+func NewBulkIndexReqBody(index string, doc bson.M) (io.Reader, error) {
 	id, body, err := NewBodyFromDocument(doc)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func NewIndexReqsFromDocuments(index string, docs []bson.M) (opensearchapi.BulkR
 	bulk := []io.Reader{}
 
 	for _, doc := range docs {
-		body, err := NewIndexReqBody(index, doc)
+		body, err := NewBulkIndexReqBody(index, doc)
 		if err != nil {
 			log.Println("skipping...", err)
 			continue
