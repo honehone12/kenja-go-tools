@@ -80,9 +80,9 @@ func NewBodyFromDocument(doc *documents.FlatDocument) (io.Reader, error) {
 
 func NewBulkIndexReqBody(
 	index string,
-	doc documents.FlatDocument,
+	doc *documents.FlatDocument,
 ) (io.Reader, error) {
-	body, err := NewBodyFromDocument(&doc)
+	body, err := NewBodyFromDocument(doc)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func NewIndexReqsFromDocuments(
 	bulk := []io.Reader{}
 
 	for _, doc := range docs {
-		body, err := NewBulkIndexReqBody(index, doc)
+		body, err := NewBulkIndexReqBody(index, &doc)
 		if err != nil {
 			log.Println("skipping...", err)
 			continue
