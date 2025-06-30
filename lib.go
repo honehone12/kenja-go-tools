@@ -4,16 +4,15 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"io"
 	"kenja2tools/J"
+	"kenja2tools/documents"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/opensearch-project/opensearch-go/v4"
 	"github.com/opensearch-project/opensearch-go/v4/opensearchapi"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -66,27 +65,24 @@ func NewOpensearchApiClient() (*opensearchapi.Client, error) {
 	return opensearchapi.NewClient(cfg)
 }
 
-func NewBodyFromDocument(doc bson.M) (string, io.Reader, error) {
-	id, ok := doc["_id"]
-	if !ok {
-		return "", nil, errors.New("could not find _id in document")
+func NewBodyFromDocument(doc *documents.FlatDocument) (io.Reader, error) {
+	if err := doc.Convert(); err != nil {
+		return nil, err
 	}
-	oid, ok := id.(bson.ObjectID)
-	if !ok {
-		return "", nil, errors.New("_id is not an ObjectID")
-	}
-	delete(doc, "_id")
 
 	b, err := json.Marshal(doc)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	return oid.Hex(), bytes.NewReader(b), nil
+	return bytes.NewReader(b), nil
 }
 
-func NewBulkIndexReqBody(index string, doc bson.M) (io.Reader, error) {
-	id, body, err := NewBodyFromDocument(doc)
+func NewBulkIndexReqBody(
+	index string,
+	doc documents.FlatDocument,
+) (io.Reader, error) {
+	body, err := NewBodyFromDocument(&doc)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +90,7 @@ func NewBulkIndexReqBody(index string, doc bson.M) (io.Reader, error) {
 	req := J.Json{
 		"create": J.Json{
 			"_index": index,
-			"_id":    id,
+			"_id":    doc.IdHex,
 		},
 	}
 	reqBody, err := req.Reader()
@@ -105,7 +101,10 @@ func NewBulkIndexReqBody(index string, doc bson.M) (io.Reader, error) {
 	return io.MultiReader(reqBody, body), nil
 }
 
-func NewIndexReqsFromDocuments(index string, docs []bson.M) (opensearchapi.BulkReq, error) {
+func NewIndexReqsFromDocuments(
+	index string,
+	docs []documents.FlatDocument,
+) (opensearchapi.BulkReq, error) {
 	bulk := []io.Reader{}
 
 	for _, doc := range docs {

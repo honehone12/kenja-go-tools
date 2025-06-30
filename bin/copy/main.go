@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"kenja2tools"
+	"kenja2tools/documents"
 	"log"
 	"os"
 
@@ -28,7 +29,7 @@ type copy struct {
 	index string
 }
 
-func (run *copy) bulkRequest(batch []bson.M) error {
+func (run *copy) bulkRequest(batch []documents.FlatDocument) error {
 	bulk, err := kenja2tools.NewIndexReqsFromDocuments(run.index, batch)
 	if err != nil {
 		return err
@@ -63,10 +64,10 @@ func (run *copy) run() error {
 	}
 	defer stream.Close(run.ctx)
 
-	batch := []bson.M{}
+	batch := []documents.FlatDocument{}
 
 	for stream.Next(run.ctx) {
-		doc := bson.M{}
+		doc := documents.FlatDocument{}
 		if err := stream.Decode(&doc); err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func (run *copy) run() error {
 			if err := run.bulkRequest(batch); err != nil {
 				return err
 			}
-			batch = []bson.M{}
+			batch = []documents.FlatDocument{}
 		}
 	}
 	if err := stream.Err(); err != nil {
