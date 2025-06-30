@@ -64,7 +64,7 @@ func (run *copy) run() error {
 	}
 	defer stream.Close(run.ctx)
 
-	batch := []documents.FlatDocument{}
+	batch := make([]documents.FlatDocument, 0, run.batchSize)
 
 	for stream.Next(run.ctx) {
 		doc := documents.FlatDocument{}
@@ -77,7 +77,7 @@ func (run *copy) run() error {
 			if err := run.bulkRequest(batch); err != nil {
 				return err
 			}
-			batch = []documents.FlatDocument{}
+			batch = make([]documents.FlatDocument, 0, run.batchSize)
 		}
 	}
 	if err := stream.Err(); err != nil {
