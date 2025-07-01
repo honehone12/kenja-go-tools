@@ -1,10 +1,18 @@
 package documents
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
+
+type Document interface {
+	IdString() string
+	Reader() (io.Reader, error)
+}
 
 type Parent struct {
 	Id           bson.ObjectID `json:"id" bson:"id"`
@@ -51,4 +59,17 @@ func (f *FlatDocument) Convert() error {
 
 	f.IdHex = f.Id.Hex()
 	return nil
+}
+
+func (f *FlatDocument) Reader() (io.Reader, error) {
+	b, err := json.Marshal(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes.NewReader(b), nil
+}
+
+func (f *FlatDocument) IdString() string {
+	return f.IdHex
 }

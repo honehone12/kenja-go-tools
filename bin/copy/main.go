@@ -29,7 +29,7 @@ type copy struct {
 	index string
 }
 
-func (run *copy) bulkRequest(batch []documents.FlatDocument) error {
+func (run *copy) bulkRequest(batch []*documents.FlatDocument) error {
 	bulk, err := kenja2tools.NewIndexReqsFromDocuments(run.index, batch)
 	if err != nil {
 		return err
@@ -64,11 +64,15 @@ func (run *copy) run() error {
 	}
 	defer stream.Close(run.ctx)
 
-	batch := make([]documents.FlatDocument, 0, run.batchSize)
+	batch := make([]*documents.FlatDocument, 0, run.batchSize)
 
 	for stream.Next(run.ctx) {
-		doc := documents.FlatDocument{}
-		if err := stream.Decode(&doc); err != nil {
+		doc := &documents.FlatDocument{}
+		if err := stream.Decode(doc); err != nil {
+			return err
+		}
+
+		if err := doc.Convert(); err != nil {
 			return err
 		}
 
@@ -77,7 +81,7 @@ func (run *copy) run() error {
 			if err := run.bulkRequest(batch); err != nil {
 				return err
 			}
-			batch = make([]documents.FlatDocument, 0, run.batchSize)
+			batch = make([]*documents.FlatDocument, 0, run.batchSize)
 		}
 	}
 	if err := stream.Err(); err != nil {

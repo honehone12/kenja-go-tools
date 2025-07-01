@@ -1,9 +1,7 @@
 package kenja2tools
 
 import (
-	"bytes"
 	"crypto/tls"
-	"encoding/json"
 	"io"
 	"kenja2tools/J"
 	"kenja2tools/documents"
@@ -65,24 +63,12 @@ func NewOpensearchApiClient() (*opensearchapi.Client, error) {
 	return opensearchapi.NewClient(cfg)
 }
 
-func NewBodyFromDocument(doc *documents.FlatDocument) (io.Reader, error) {
-	if err := doc.Convert(); err != nil {
-		return nil, err
-	}
-
-	b, err := json.Marshal(doc)
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes.NewReader(b), nil
-}
-
-func NewBulkIndexReqBody(
+func NewBulkIndexReqBody[T documents.Document](
 	index string,
-	doc *documents.FlatDocument,
+	id string,
+	doc T,
 ) (io.Reader, error) {
-	body, err := NewBodyFromDocument(doc)
+	body, err := doc.Reader()
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +76,7 @@ func NewBulkIndexReqBody(
 	req := J.Json{
 		"create": J.Json{
 			"_index": index,
-			"_id":    doc.IdHex,
+			"_id":    id,
 		},
 	}
 	reqBody, err := req.Reader()
@@ -101,14 +87,14 @@ func NewBulkIndexReqBody(
 	return io.MultiReader(reqBody, body), nil
 }
 
-func NewIndexReqsFromDocuments(
+func NewIndexReqsFromDocuments[T documents.Document](
 	index string,
-	docs []documents.FlatDocument,
+	docs []T,
 ) (opensearchapi.BulkReq, error) {
 	bulk := []io.Reader{}
 
 	for _, doc := range docs {
-		body, err := NewBulkIndexReqBody(index, &doc)
+		body, err := NewBulkIndexReqBody(index, doc.IdString(), doc)
 		if err != nil {
 			log.Println("skipping...", err)
 			continue
