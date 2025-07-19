@@ -23,6 +23,7 @@ type Parent struct {
 type FlatDocument struct {
 	Id             bson.ObjectID `json:"-" bson:"_id"`
 	IdHex          string        `json:"-" bson:"-"`
+	UpdatedAt      uint64        `json:"updated_at" bson:"updated_at"`
 	ItemType       int32         `json:"item_type" bson:"item_type"`
 	Rating         int32         `json:"rating" bson:"rating"`
 	Url            string        `json:"url" bson:"url"`
